@@ -23,12 +23,18 @@ ALGORITHMS = {'ppo': PPO, 'dqn': DQN, 'a2c': A2C}
 
 def make_env(config):
     def _init():
-        env = gym.make(
-            'FnafNight-v0',
-            night=config['night'],
-            step_duration=config.get('step_duration', 1.0),
-            full_observability=config.get('full_observability', True),
-        )
+        env_id = config.get('env_id', 'FnafNight-v0')
+        env_kwargs = {
+            'night': config['night'],
+            'step_duration': config.get('step_duration', 1.0),
+        }
+        # FnafNight-v0 specific kwargs
+        if env_id == 'FnafNight-v0':
+            env_kwargs['full_observability'] = config.get('full_observability', True)
+        # Any extra env-specific kwargs from config
+        env_kwargs.update(config.get('env_kwargs', {}))
+
+        env = gym.make(env_id, **env_kwargs)
         if 'reward_shaping' in config:
             env = FnafRewardShaping(env, **config['reward_shaping'])
         return env

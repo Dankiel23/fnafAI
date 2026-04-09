@@ -1,0 +1,31 @@
+{
+    "algorithm": "ppo",
+    "env_id": "FnafCVReady-v0",
+    "night": 1,
+    "total_timesteps": 1000000,
+    "n_envs": 4,
+    "step_duration": 1.0,
+    "env_kwargs": {
+        "obs_noise_std": 0.02,
+        "cv_detection_rate": 0.90
+    },
+    "notes": [
+        "obs_noise_std=0.02 simulates ~2% error on continuous CV readings",
+        "cv_detection_rate=0.90 means CV misses animatronics 10% of the time",
+        "Train night 1 first, then use curriculum to reach harder nights",
+        "Use this model for real-game play via screen capture"
+    ],
+    "policy_kwargs": {
+        "net_arch": {"pi": [256, 256, 128], "vf": [256, 256, 128]}
+    },
+    "hyperparameters": {
+        "learning_rate": 0.0003,
+        "n_steps": 2048,
+        "batch_size": 64,
+        "n_epochs": 10,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip_range": 0.2,
+        "ent_coef": 0.02
+    }
+}
