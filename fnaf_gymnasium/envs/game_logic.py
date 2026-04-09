@@ -493,6 +493,9 @@ class FNAFGame:
                 self.bonnie.sub_position = -1
                 self.bonnie.office_attempts += 1
                 self.bonnie_jumpscare_timer = 0.0
+                # Immediate jumpscare if cameras are already down
+                if not self.player.cameras_on:
+                    self._game_over(GameOverReason.BONNIE)
             return
 
         # Normal movement - random position on left side
@@ -547,6 +550,9 @@ class FNAFGame:
                 self.chica.sub_position = -1
                 self.chica.office_attempts += 1
                 self.chica_jumpscare_timer = 0.0
+                # Immediate jumpscare if cameras are already down
+                if not self.player.cameras_on:
+                    self._game_over(GameOverReason.CHICA)
             return
 
         # Adjacent movement for Chica
@@ -610,11 +616,8 @@ class FNAFGame:
         self._update_chica(dt)
         self._update_foxy(dt)
 
-        # Check for Bonnie/Chica in-office cameras-off jumpscare
-        if self.bonnie.current_position == 'office' and not self.player.cameras_on:
-            self._game_over(GameOverReason.BONNIE)
-        if self.chica.current_position == 'office' and not self.player.cameras_on:
-            self._game_over(GameOverReason.CHICA)
+        # Bonnie/Chica office jumpscares are handled in toggle_cameras
+        # (cameras-off event) and via their 30s timers in _update_bonnie/_update_chica
 
     # ============================================================
     # PLAYER ACTIONS
@@ -629,8 +632,13 @@ class FNAFGame:
         self.player.cameras_toggled += 1
 
         if was_on and not self.player.cameras_on:
-            # Cameras just went off
+            # Cameras just went off - trigger Foxy cooldown
             self._on_cameras_off_foxy()
+            # Bonnie/Chica in office jumpscare on cameras-off
+            if self.bonnie.current_position == 'office':
+                self._game_over(GameOverReason.BONNIE)
+            if not self.game_over and self.chica.current_position == 'office':
+                self._game_over(GameOverReason.CHICA)
 
     def switch_camera(self, camera: str):
         """Switch to a specific camera."""
