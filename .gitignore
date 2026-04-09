@@ -27,3 +27,8 @@ training_logs/
 
 # TensorBoard
 runs/
+
+# Saved models
+models/
+*.zip
+fnaf_quickstart_model*
