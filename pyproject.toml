@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fnaf-gymnasium"
+version = "0.1.0"
+description = "FNAF 1 Gymnasium environment for reinforcement learning"
+requires-python = ">=3.9"
+dependencies = [
+    "gymnasium>=1.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+train = [
+    "stable-baselines3>=2.0.0",
+    "torch>=2.0.0",
+    "tensorboard>=2.14.0",
+]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["fnaf_gymnasium*"]
