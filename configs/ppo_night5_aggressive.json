@@ -1,0 +1,31 @@
+{
+    "algorithm": "ppo",
+    "night": 5,
+    "total_timesteps": 2000000,
+    "n_envs": 8,
+    "full_observability": true,
+    "step_duration": 1.0,
+    "policy_kwargs": {
+        "net_arch": {"pi": [256, 256, 128], "vf": [256, 256, 128]}
+    },
+    "hyperparameters": {
+        "learning_rate": 0.0001,
+        "n_steps": 4096,
+        "batch_size": 128,
+        "n_epochs": 15,
+        "gamma": 0.995,
+        "gae_lambda": 0.98,
+        "clip_range": 0.15,
+        "ent_coef": 0.02,
+        "vf_coef": 0.5,
+        "max_grad_norm": 0.5
+    },
+    "reward_shaping": {
+        "survival_bonus": 0.02,
+        "death_penalty": -200.0,
+        "win_bonus": 200.0,
+        "power_penalty_scale": 0.008,
+        "defensive_bonus": 0.05,
+        "waste_penalty": 0.015
+    }
+}
