@@ -26,6 +26,12 @@ register(
     max_episode_steps=535,
 )
 
+register(
+    id='FnafMultiNight-v0',
+    entry_point='fnaf_gymnasium.envs.multi_night:FnafMultiNightEnv',
+    max_episode_steps=2675,  # 535 seconds x 5 nights max
+)
+
 __all__ = [
     'FnafRewardShaping',
     'FnafSparseReward',
