@@ -5,3 +5,25 @@ research\Night 1 power test.mp4
 node_modules
 prepros-6.config
 prepros.config
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Training artifacts
+training_logs/
+*.zip
+*.pkl
+
+# TensorBoard
+runs/
