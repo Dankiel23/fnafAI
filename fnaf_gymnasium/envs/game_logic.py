@@ -9,35 +9,19 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Optional
 
-
-# Camera/Position types
-CAMERAS = ['1A', '1B', '1C', '2A', '2B', '3', '4A', '4B', '5', '6', '7']
-POSITIONS = CAMERAS + ['office']
-
-CAMERA_NAMES = {
-    '1A': 'Show stage',
-    '1B': 'Dining area',
-    '1C': 'Pirate cove',
-    '2A': 'West hall',
-    '2B': 'W. hall corner',
-    '3': 'Supply closet',
-    '4A': 'East hall',
-    '4B': 'E. hall corner',
-    '5': 'Backstage',
-    '6': 'Kitchen',
-    '7': 'Restrooms',
-}
-
-# Night duration in seconds
-NIGHT_DURATION = 535
-
-# AI level increases happen at these seconds
-AI_INCREASE_2AM = 179
-AI_INCREASE_3AM = 268
-AI_INCREASE_4AM = 357
-
-# Additional power drainage interval spacing per night
-POWER_DRAIN_SPACING = [0, 9.6, 6, 5, 4, 3, 3, 3]
+from .constants import (
+    CAMERAS, POSITIONS, CAMERA_NAMES,
+    NIGHT_DURATION_SECONDS as NIGHT_DURATION,
+    AI_INCREASE_2AM, AI_INCREASE_3AM, AI_INCREASE_4AM,
+    POWER_DRAIN_SPACING, STARTING_POWER, MAX_POWER_MULTIPLIER,
+    FREDDY_PATH, FREDDY_WAIT_BASE_FRAMES, FREDDY_WAIT_AI_MULTIPLIER, GAME_FPS,
+    FOXY_COOLDOWN_MIN, FOXY_COOLDOWN_MAX, FOXY_ATTACK_COUNTDOWN, FOXY_RUN_DELAY,
+    BONNIE_POSITIONS, CHICA_ADJACENCY,
+    OFFICE_JUMPSCARE_TIMEOUT, FREDDY_OFFICE_JUMPSCARE_CHANCE,
+    POWER_OUTAGE_CHANCE, POWER_OUTAGE_MAX_ATTEMPTS,
+    FREDDY_INTERVAL, BONNIE_INTERVAL, CHICA_INTERVAL, FOXY_INTERVAL,
+    TIME_CONVERSION_FACTOR,
+)
 
 
 class GameOverReason(IntEnum):
@@ -78,7 +62,7 @@ class PlayerState:
     right_door_closed: bool = False
     left_light_on: bool = False
     right_light_on: bool = False
-    power: float = 99.0
+    power: float = STARTING_POWER
     cameras_toggled: int = 0
     cameras_looked_at: int = 0
     left_door_toggled: int = 0
@@ -121,7 +105,7 @@ class FNAFGame:
         self.freddy_office_timer: float = 0.0
 
         # Initialize player state
-        self.player = PlayerState()
+        self.player = PlayerState(power=STARTING_POWER)
 
         # Initialize animatronics
         self._init_animatronics()
@@ -134,7 +118,7 @@ class FNAFGame:
             name='Freddy',
             current_position='1A',
             sub_position=-1,
-            movement_opportunity_interval=3.02,
+            movement_opportunity_interval=FREDDY_INTERVAL,
             ai_levels=[None, 0, 0, 1, freddy_night4_ai, 3, 4, 20],
         )
 
@@ -142,7 +126,7 @@ class FNAFGame:
             name='Bonnie',
             current_position='1A',
             sub_position=-1,
-            movement_opportunity_interval=4.97,
+            movement_opportunity_interval=BONNIE_INTERVAL,
             ai_levels=[None, 0, 3, 0, 2, 5, 10, 20],
         )
 
@@ -150,7 +134,7 @@ class FNAFGame:
             name='Chica',
             current_position='1A',
             sub_position=-1,
-            movement_opportunity_interval=4.98,
+            movement_opportunity_interval=CHICA_INTERVAL,
             ai_levels=[None, 0, 1, 5, 4, 7, 12, 20],
         )
 
@@ -158,7 +142,7 @@ class FNAFGame:
             name='Foxy',
             current_position='1C',
             sub_position=0,
-            movement_opportunity_interval=5.01,
+            movement_opportunity_interval=FOXY_INTERVAL,
             ai_levels=[None, 0, 1, 2, 6, 5, 16, 20],
         )
 
@@ -196,7 +180,7 @@ class FNAFGame:
             usage += 1
         if self.player.right_light_on:
             usage += 1
-        return min(usage, 4)
+        return min(usage, MAX_POWER_MULTIPLIER)
 
     def _calculate_power_drain_per_second(self) -> float:
         """Calculate power drain per second."""
@@ -241,7 +225,7 @@ class FNAFGame:
             if self.power_outage_timer >= 5.0:
                 self.power_outage_timer -= 5.0
                 self.power_outage_attempts += 1
-                if random.random() < 0.2 or self.power_outage_attempts >= 4:
+                if random.random() < POWER_OUTAGE_CHANCE or self.power_outage_attempts >= POWER_OUTAGE_MAX_ATTEMPTS:
                     self.power_outage_phase = 1
                     self.power_outage_timer = 0.0
                     self.power_outage_attempts = 0
@@ -251,7 +235,7 @@ class FNAFGame:
             if self.power_outage_timer >= 5.0:
                 self.power_outage_timer -= 5.0
                 self.power_outage_attempts += 1
-                if random.random() < 0.2 or self.power_outage_attempts >= 4:
+                if random.random() < POWER_OUTAGE_CHANCE or self.power_outage_attempts >= POWER_OUTAGE_MAX_ATTEMPTS:
                     self.power_outage_phase = 2
                     self.power_outage_timer = 0.0
                     self.power_outage_attempts = 0
@@ -260,7 +244,7 @@ class FNAFGame:
             # Darkness: 20% chance every 2 seconds
             if self.power_outage_timer >= 2.0:
                 self.power_outage_timer -= 2.0
-                if random.random() < 0.2:
+                if random.random() < POWER_OUTAGE_CHANCE:
                     self._game_over(GameOverReason.POWER_OUTAGE_FREDDY)
 
     def _game_over(self, reason: GameOverReason):
@@ -326,7 +310,7 @@ class FNAFGame:
             self.foxy.current_position = '2A'
             self.foxy.sub_position = -1
             self.foxy_attacking = True
-            self.foxy_attack_countdown = 25.0
+            self.foxy_attack_countdown = FOXY_ATTACK_COUNTDOWN
 
     def _foxy_attempt_jumpscare(self, from_camera: bool = False):
         """Foxy attempts to reach the office."""
@@ -336,7 +320,7 @@ class FNAFGame:
         if from_camera:
             # 1.87 second delay when triggered by looking at cam 2A
             self.foxy_running = True
-            self.foxy_running_timer = 1.87
+            self.foxy_running_timer = FOXY_RUN_DELAY
         else:
             self._foxy_reach_office()
 
@@ -362,7 +346,7 @@ class FNAFGame:
         """When cameras go off, Foxy gets a cooldown."""
         if self.foxy.current_position == '1C' and not self.foxy_attacking:
             self.foxy_cooldown_active = True
-            self.foxy_cooldown_remaining = random.uniform(0.83, 16.67)
+            self.foxy_cooldown_remaining = random.uniform(FOXY_COOLDOWN_MIN, FOXY_COOLDOWN_MAX)
 
     def _on_camera_view_2a(self):
         """When player looks at camera 2A and Foxy is attacking."""
@@ -385,7 +369,7 @@ class FNAFGame:
             self.freddy_office_timer += dt
             if self.freddy_office_timer >= 1.0:
                 self.freddy_office_timer -= 1.0
-                if not self.player.cameras_on and random.random() < 0.25:
+                if not self.player.cameras_on and random.random() < FREDDY_OFFICE_JUMPSCARE_CHANCE:
                     self._game_over(GameOverReason.FREDDY)
             return
 
@@ -444,11 +428,10 @@ class FNAFGame:
             return
 
         # Normal movement along Freddy's path
-        freddy_path = {'1A': '1B', '1B': '7', '7': '6', '6': '4A', '4A': '4B'}
-        if self.freddy.current_position in freddy_path:
-            destination = freddy_path[self.freddy.current_position]
-            wait_frames = max(0, 1000 - self.freddy.current_ai_level * 100)
-            wait_seconds = wait_frames / 60.0
+        if self.freddy.current_position in FREDDY_PATH:
+            destination = FREDDY_PATH[self.freddy.current_position]
+            wait_frames = max(0, FREDDY_WAIT_BASE_FRAMES - self.freddy.current_ai_level * FREDDY_WAIT_AI_MULTIPLIER)
+            wait_seconds = wait_frames / GAME_FPS
 
             if wait_seconds <= 0:
                 # Move immediately
@@ -473,7 +456,7 @@ class FNAFGame:
         # Handle Bonnie in office (30s timer)
         if self.bonnie.current_position == 'office':
             self.bonnie_jumpscare_timer += dt
-            if self.bonnie_jumpscare_timer >= 30.0:
+            if self.bonnie_jumpscare_timer >= OFFICE_JUMPSCARE_TIMEOUT:
                 self._game_over(GameOverReason.BONNIE)
             elif not self.player.cameras_on:
                 # Cameras down while Bonnie in office = instant death
@@ -513,7 +496,7 @@ class FNAFGame:
             return
 
         # Normal movement - random position on left side
-        possible = ['1B', '3', '5', '2A', '2B']
+        possible = BONNIE_POSITIONS
         self.bonnie.current_position = random.choice(possible)
         self.bonnie.sub_position = -1
 
@@ -531,7 +514,7 @@ class FNAFGame:
         # Handle Chica in office (30s timer)
         if self.chica.current_position == 'office':
             self.chica_jumpscare_timer += dt
-            if self.chica_jumpscare_timer >= 30.0:
+            if self.chica_jumpscare_timer >= OFFICE_JUMPSCARE_TIMEOUT:
                 self._game_over(GameOverReason.CHICA)
             return
 
@@ -575,16 +558,8 @@ class FNAFGame:
     def _calculate_chica_position(self) -> Optional[str]:
         """Calculate Chica's next position (adjacent rooms only)."""
         pos = self.chica.current_position
-        if pos == '1A':
-            return '1B'
-        elif pos == '1B':
-            return random.choice(['4A', '6', '7'])
-        elif pos == '6':
-            return random.choice(['1B', '7'])
-        elif pos == '7':
-            return random.choice(['1B', '6'])
-        elif pos == '4A':
-            return random.choice(['1B', '4B'])
+        if pos in CHICA_ADJACENCY:
+            return random.choice(CHICA_ADJACENCY[pos])
         return None
 
     # ============================================================
@@ -705,7 +680,7 @@ class FNAFGame:
 
     def get_in_game_time(self) -> dict:
         """Get the current in-game time."""
-        in_game_minutes = max(0, math.floor(self.current_second * 0.6741573033707866))
+        in_game_minutes = max(0, math.floor(self.current_second * TIME_CONVERSION_FACTOR))
         hour = max(0, math.floor(in_game_minutes / 60))
         if hour == 0:
             hour = 12
