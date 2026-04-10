@@ -34,4 +34,4 @@ models/
 fnaf_quickstart_model*
 
 # context
-*.CLAUDE.md
+*CLAUDE.md
