@@ -119,6 +119,12 @@ The mechanics in the Python simulator are based on the reverse-engineering notes
 
 The first is the most relevant reference for AI training and simulator correctness.
 
+## Credit
+
+This project builds on the research, reverse-engineering, and original simulator groundwork by [CeriW / fnaf1-ai-simulator](https://github.com/CeriW/fnaf1-ai-simulator).
+
+Credit goes to that project for the heavy lifting around documenting FNAF 1 logic, validating game behavior, and establishing much of the simulator-side understanding this RL environment depends on.
+
 ## Legacy Browser Simulator
 
 The original browser-based simulator and its non-AI web assets were moved into `legacy_simulator/` so the repository root stays focused on the AI/RL project.
