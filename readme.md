@@ -1,29 +1,141 @@
-# Five Nights At Freddy's AI simulator
+# FNAF Gymnasium
 
-I was inspired to make this simulator of how the AI in [Five Nights At Freddy's 1](https://store.steampowered.com/app/319510/Five_Nights_at_Freddys/) works after watching the following Youtube video, which reveals that the 'artificial intelligence' is really just a bunch of if statements based on random number generation: https://www.youtube.com/watch?v=ujg0Y5IziiY
+`fnaf_gymnasium` is a Gymnasium environment for training reinforcement learning agents to play Five Nights at Freddy's 1.
 
-That said, it was surprisingly difficult to do - each animatronic has its own different path around the building, different movement intervals and different criteria for whether they are able to move or not. Furthermore power consumption proved to be a _major_ difficulty to code, owing to the fact that none of the formulae found online matched up with what the game actually did. This required a lot of play testing and reverse engineering on my part and I was eventually able to come up with an amended formula based on what others claimed that does seem to match what the game does.
+The repository is centered on a pure Python simulation of the game's mechanics, along with environment variants, reward-shaping tools, training scripts, evaluation tooling, and tests. It is meant for training AI agents in simulation rather than interacting with the live game directly.
 
-At present I have no intention of making any other versions of this, but I did code it keeping in mind that I _could_ adapt it to work with other games in the series.
+## What This Project Includes
 
-## The brief
+- A pure Python FNAF 1 simulation engine
+- Gymnasium-compatible environments for RL training
+- Stable-Baselines3-friendly training and evaluation scripts
+- Fully observable and CV-style partially observable environment variants
+- Replay logging and episode analysis utilities
+- Tests for game logic, wrappers, custom envs, and edge cases
 
-- [How the game works](https://github.com/CeriW/fnaf-but-boring/blob/b19f53be151db013c89aa0b1a235db43eb26e668/research/how-the-game-works.md)
-- [How sound works](https://github.com/CeriW/fnaf-but-boring/blob/f3a45f81cb06bf874548392b5d1db36a9201e055/research/how-sound-works.md)
+## Environment Variants
 
-## Tech
+- `FnafNight-v0`
+  Standard environment with a 17-action discrete action space and 77-dimensional observation.
+- `FnafCVReady-v0`
+  Partial-observability environment with memory features and CV-style signals for eventual screen-capture deployment.
+- `FnafCustomNight-v0`
+  Custom AI levels for each animatronic.
+- `FnafRandomDifficulty-v0`
+  Random AI levels every reset.
+- `FnafMultiNight-v0`
+  Multiple nights chained into one episode.
 
-- Typescript
-- LESS
-- Pug (formerly Jade)
-- Markdown
-- Compiled locally using [Prepros](https://prepros.io/)
-- Hosted using Github pages
+## Core Python Files
 
-Since I started this project I have become familiar with React, and the idea of doing this the way that I have seems crazy, with all of the direct DOM manipulation and global variables to control the state. I do not necessarily consider this a bad thing though - if you don't look back on old projects and think you could do it better if you did it again, you have not grown as a developer.
+- `fnaf_gymnasium/envs/game_logic.py`
+  Core mechanics: animatronic behavior, power drain, timing, and game-over rules.
+- `fnaf_gymnasium/envs/constants.py`
+  Tuning constants derived from the reverse-engineering notes.
+- `fnaf_gymnasium/envs/fnaf_env.py`
+  Standard training environment.
+- `fnaf_gymnasium/envs/cv_env.py`
+  CV-oriented environment for partial observability and memory-based inference.
+- `fnaf_gymnasium/wrappers.py`
+  Reward shaping, sparse reward, time penalty, and action masking wrappers.
+- `fnaf_gymnasium/callbacks.py`
+  Stable-Baselines3 metrics and curriculum callbacks.
 
-Pug and LESS were new to me and I used this project to try them out. I don't think I'm converted, and will likely stick to my HTML and SCSS, but it was interesting to get a feel for them.
+## Install
 
-I was already familiar with Typescript but had not used it on a front end project before. I was shocked by how many times I had to tell it "trust me, I'm 100% sure this HTML element exists".
+Base package:
 
-I also used this project as an excuse to get a little more familiar with markdown and wrote all of my research in it.
+```bash
+pip install -e .
+```
+
+Training extras:
+
+```bash
+pip install -e ".[train]"
+```
+
+Or:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Quick Start
+
+Train a baseline PPO agent on Night 1:
+
+```bash
+python quickstart.py
+```
+
+Train manually:
+
+```bash
+python train.py train --algo ppo --night 1 --total-timesteps 500000
+```
+
+Train the CV-oriented variant:
+
+```bash
+python train_cv.py --steps 2000000 --target-night 3
+```
+
+Train from config:
+
+```bash
+python train_from_config.py configs/ppo_night1.json
+```
+
+Watch a trained agent:
+
+```bash
+python watch_agent.py --model fnaf_quickstart_model.zip --night 1
+```
+
+Evaluate a model across nights:
+
+```bash
+python evaluate_all_nights.py --model fnaf_quickstart_model.zip --algo ppo
+```
+
+## Repository Layout
+
+```text
+fnaf_gymnasium/   Python package and Gymnasium environments
+tests/            Pytest suite
+configs/          JSON training configurations
+research/         Reverse-engineering notes for FNAF mechanics
+legacy_simulator/ Archived browser simulator and web assets
+*.py              Training, evaluation, replay, and benchmark scripts
+```
+
+## Research Notes
+
+The mechanics in the Python simulator are based on the reverse-engineering notes in:
+
+- `research/how-the-game-works.md`
+- `research/how-sound-works.md`
+
+The first is the most relevant reference for AI training and simulator correctness.
+
+## Legacy Browser Simulator
+
+The original browser-based simulator and its non-AI web assets were moved into `legacy_simulator/` so the repository root stays focused on the AI/RL project.
+
+That folder contains:
+
+- the old TypeScript frontend source
+- compiled browser output
+- frontend tooling files
+- images, icons, and audio assets for the simulator website
+
+It is still useful as reference material when comparing the Python port against the earlier simulator, but it is not required for Python training or testing.
+
+## Testing
+
+Run the test suite with:
+
+```bash
+pytest
+```
