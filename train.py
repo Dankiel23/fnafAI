@@ -22,6 +22,7 @@ from stable_baselines3.common.monitor import Monitor
 
 # Register the environment
 import fnaf_gymnasium
+from fnaf_gymnasium.callbacks import FnafMetricsCallback
 
 
 ALGORITHMS = {
@@ -82,7 +83,8 @@ def train(args):
         name_prefix='fnaf_model',
     )
 
-    callbacks = CallbackList([eval_callback, checkpoint_callback])
+    metrics_callback = FnafMetricsCallback(verbose=1)
+    callbacks = CallbackList([eval_callback, checkpoint_callback, metrics_callback])
 
     # Create model
     AlgoClass = ALGORITHMS[args.algo]
@@ -125,7 +127,14 @@ def train(args):
             'ent_coef': 0.01,
         })
 
-    model = AlgoClass(**model_kwargs)
+    if args.load_model:
+        print(f"Loading model from {args.load_model}")
+        model = AlgoClass.load(args.load_model, env=train_env, **{
+            k: v for k, v in model_kwargs.items()
+            if k not in ('policy', 'env')
+        })
+    else:
+        model = AlgoClass(**model_kwargs)
 
     # Train
     model.learn(
@@ -235,6 +244,8 @@ def main():
     train_parser.add_argument('--step-duration', type=float, default=1.0)
     train_parser.add_argument('--seed', type=int, default=42)
     train_parser.add_argument('--log-dir', type=str, default='./training_logs')
+    train_parser.add_argument('--load-model', type=str, default=None,
+                              help='Path to existing model to continue training from')
 
     # Curriculum subcommand
     curriculum_parser = subparsers.add_parser('curriculum', help='Curriculum learning')
@@ -248,6 +259,8 @@ def main():
     curriculum_parser.add_argument('--step-duration', type=float, default=1.0)
     curriculum_parser.add_argument('--seed', type=int, default=42)
     curriculum_parser.add_argument('--log-dir', type=str, default='./training_logs')
+    curriculum_parser.add_argument('--load-model', type=str, default=None,
+                                   help='Path to existing model to continue training from')
 
     # Evaluate subcommand
     eval_parser = subparsers.add_parser('eval', help='Evaluate a trained model')
