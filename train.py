@@ -187,6 +187,9 @@ def evaluate(args):
 
     wins = 0
     total_episodes = args.eval_episodes
+    final_powers = []
+    death_causes = {}
+    rewards = []
 
     for ep in range(total_episodes):
         obs, info = env.reset()
@@ -205,10 +208,24 @@ def evaluate(args):
         survived = info.get('game_over_reason', '') == 'SURVIVED'
         if survived:
             wins += 1
+        else:
+            cause = info.get('game_over_reason', 'UNKNOWN')
+            death_causes[cause] = death_causes.get(cause, 0) + 1
+
+        final_powers.append(info.get('power', 0.0))
+        rewards.append(total_reward)
         result = "SURVIVED" if survived else f"DIED ({info.get('game_over_reason', 'unknown')})"
         print(f"Episode {ep+1}: {result} | Power: {info['power']:.1f}% | Reward: {total_reward:.2f}")
 
     print(f"\nWin rate: {wins}/{total_episodes} ({100*wins/total_episodes:.1f}%)")
+    if final_powers:
+        print(f"Avg final power: {np.mean(final_powers):.1f}%")
+    if rewards:
+        print(f"Avg reward: {np.mean(rewards):.2f}")
+    if death_causes:
+        print("Death breakdown:")
+        for cause, count in sorted(death_causes.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {cause}: {count} ({100*count/total_episodes:.1f}%)")
     env.close()
 
 
