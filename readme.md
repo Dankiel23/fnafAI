@@ -2,7 +2,11 @@
 
 `fnaf_gymnasium` is a Gymnasium environment for training reinforcement learning agents to play Five Nights at Freddy's 1.
 
-The repository is centered on a pure Python simulation of the game's mechanics, along with environment variants, reward-shaping tools, training scripts, evaluation tooling, and tests. It is meant for training AI agents in simulation rather than interacting with the live game directly.
+The repository is centered on a pure Python simulation of the game's mechanics, plus environment variants, reward shaping tools, training scripts, evaluation utilities, replay tooling, and tests. The main workflow is:
+
+- train in the standard fully observable environment
+- progress night by night with fine-tuning and checkpoint evaluation
+- optionally train a separate CV-oriented policy for real-game deployment
 
 ## What This Project Includes
 
@@ -18,7 +22,7 @@ The repository is centered on a pure Python simulation of the game's mechanics, 
 - `FnafNight-v0`
   Standard environment with a 17-action discrete action space and 77-dimensional observation.
 - `FnafCVReady-v0`
-  Partial-observability environment with memory features and CV-style signals for eventual screen-capture deployment.
+  Partial-observability environment with memory features and CV-style signals for eventual screen-capture deployment. Observation size is 87.
 - `FnafCustomNight-v0`
   Custom AI levels for each animatronic.
 - `FnafRandomDifficulty-v0`
@@ -40,6 +44,10 @@ The repository is centered on a pure Python simulation of the game's mechanics, 
   Reward shaping, sparse reward, time penalty, and action masking wrappers.
 - `fnaf_gymnasium/callbacks.py`
   Stable-Baselines3 metrics and curriculum callbacks.
+- `train.py`
+  Main standard-env train/eval CLI with checkpointing, fine-tuning, and reward-shaping flags.
+- `train_cv.py`
+  Separate CV-env curriculum training script.
 
 ## Install
 
@@ -55,13 +63,19 @@ Training extras:
 pip install -e ".[train]"
 ```
 
+Development extras:
+
+```bash
+pip install -e ".[dev]"
+```
+
 Or:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Quick Start
+## Standard Training Workflow
 
 Train a baseline PPO agent on Night 1:
 
@@ -75,10 +89,10 @@ Train manually:
 python train.py train --algo ppo --night 1 --total-timesteps 500000
 ```
 
-Train the CV-oriented variant:
+Continue training from an earlier checkpoint:
 
 ```bash
-python train_cv.py --steps 2000000 --target-night 3
+python train.py train --algo ppo --night 2 --total-timesteps 1500000 --load-model .\training_logs\night2_v3\night2_ppo\final_model.zip --reward-shaping --log-dir ./training_logs/night3_v1
 ```
 
 Train from config:
@@ -93,11 +107,50 @@ Watch a trained agent:
 python watch_agent.py --model fnaf_quickstart_model.zip --night 1
 ```
 
-Evaluate a model across nights:
+Evaluate a model on a specific night:
+
+```bash
+python train.py eval --model-path .\training_logs\night2_v3\night2_ppo\final_model.zip --algo ppo --night 2 --eval-episodes 500
+```
+
+Evaluate across multiple nights:
 
 ```bash
 python evaluate_all_nights.py --model fnaf_quickstart_model.zip --algo ppo
 ```
+
+## Checkpoints And Outputs
+
+`train.py` writes several useful artifacts during training:
+
+- periodic checkpoints under `training_logs/.../checkpoints/`
+- an eval-selected best model under `training_logs/.../best_model/best_model.zip`
+- a final model under `training_logs/.../final_model.zip`
+- TensorBoard logs under `training_logs/.../tensorboard/`
+
+For this project, direct eval win rate is usually more important than the callback's cumulative training `win_rate`. It is common for a periodic checkpoint to outperform `best_model` if `best_model` was selected by reward rather than raw win rate.
+
+## CV Training Workflow
+
+Train the CV-oriented variant:
+
+```bash
+python train_cv.py --steps 2000000 --target-night 3
+```
+
+The CV environment is a separate training track intended for real-game deployment. It uses a different observation space from the standard env, so a strong standard-env model is evidence that the policy ideas work, but it is not a direct drop-in checkpoint for `FnafCVReady-v0`.
+
+## Real-Game Deployment Note
+
+Finishing CV training does not by itself let the model directly play the Steam version. A deployment pipeline is still required:
+
+- game window capture
+- CV/OCR/template matching to build observations
+- stateful memory tracking between frames
+- policy inference
+- keyboard/mouse action execution
+
+The CV env was designed so this bridge is possible, not so it is automatic.
 
 ## Repository Layout
 
@@ -107,6 +160,7 @@ tests/            Pytest suite
 configs/          JSON training configurations
 research/         Reverse-engineering notes for FNAF mechanics
 legacy_simulator/ Archived browser simulator and web assets
+training_logs/    Generated checkpoints, best models, final models, and TensorBoard data
 *.py              Training, evaluation, replay, and benchmark scripts
 ```
 
@@ -143,5 +197,5 @@ It is still useful as reference material when comparing the Python port against 
 Run the test suite with:
 
 ```bash
-pytest
+python -m pytest
 ```
