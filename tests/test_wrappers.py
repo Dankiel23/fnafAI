@@ -108,3 +108,59 @@ class TestFnafRewardShaping:
         _, reward, _, _, _ = env.step(0)
         # Reward should reflect death penalty
         env.close()
+
+    def test_right_doorway_close_is_rewarded_even_if_threat_moves_away(self):
+        env = FnafRewardShaping(
+            FnafEnv(night=2),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            waste_penalty=0.0,
+            defensive_bonus=1.0,
+            approaching_bonus=0.0,
+            open_door_penalty=0.0,
+            light_bonus=0.0,
+        )
+        env.reset()
+        env.unwrapped.game.chica.current_ai_level = 20
+        env.unwrapped.game.chica.current_position = '4B'
+        env.unwrapped.game.chica.sub_position = 1
+        env.unwrapped.game.chica.time_since_last_check = (
+            env.unwrapped.game.chica.movement_opportunity_interval
+        )
+        env.unwrapped.game.player.right_door_closed = False
+
+        _, reward, terminated, _, _ = env.step(3)  # Toggle right door
+
+        assert not terminated
+        assert reward >= 1.0
+        assert env.unwrapped.game.player.right_door_closed is True
+        assert env.unwrapped.game.chica.current_position == '1B'
+        env.close()
+
+    def test_right_doorway_open_is_penalized_when_knowable(self):
+        env = FnafRewardShaping(
+            FnafEnv(night=2),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            waste_penalty=0.0,
+            defensive_bonus=0.0,
+            approaching_bonus=0.0,
+            open_door_penalty=1.0,
+            light_bonus=0.0,
+        )
+        env.reset()
+        env.unwrapped.game.chica.current_ai_level = 20
+        env.unwrapped.game.chica.current_position = '4B'
+        env.unwrapped.game.chica.sub_position = 1
+        env.unwrapped.game.chica.time_since_last_check = (
+            env.unwrapped.game.chica.movement_opportunity_interval
+        )
+        env.unwrapped.game.player.right_door_closed = False
+        env.unwrapped.game.player.cameras_on = True
+
+        _, reward, terminated, _, _ = env.step(0)
+
+        assert not terminated
+        assert reward <= -1.0
+        assert env.unwrapped.game.chica.current_position == 'office'
+        env.close()

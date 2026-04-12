@@ -7,7 +7,6 @@ different training configurations.
 
 import gymnasium as gym
 import numpy as np
-from gymnasium import spaces
 
 
 class FnafRewardShaping(gym.Wrapper):
@@ -19,49 +18,129 @@ class FnafRewardShaping(gym.Wrapper):
     - death_penalty: penalty for dying
     - win_bonus: reward for surviving the night
     - power_penalty_scale: scale for power usage penalty
-    - defensive_bonus: reward for closing doors against threats
-    - waste_penalty: penalty for closing doors with no threat
+    - defensive_bonus: reward for closing doors against threats in the doorway
+    - approaching_bonus: reward for closing doors when a threat is in the hallway corner
+    - waste_penalty: penalty for closing doors with no nearby threat at all
     """
 
     def __init__(self, env, survival_bonus=0.01, death_penalty=-100.0,
                  win_bonus=100.0, power_penalty_scale=0.005,
-                 defensive_bonus=0.02, waste_penalty=0.01):
+                 defensive_bonus=0.05, approaching_bonus=0.03,
+                 waste_penalty=0.01, open_door_penalty=0.05,
+                 light_bonus=0.03):
         super().__init__(env)
         self.survival_bonus = survival_bonus
         self.death_penalty = death_penalty
         self.win_bonus = win_bonus
         self.power_penalty_scale = power_penalty_scale
         self.defensive_bonus = defensive_bonus
+        self.approaching_bonus = approaching_bonus
         self.waste_penalty = waste_penalty
+        self.open_door_penalty = open_door_penalty
+        self.light_bonus = light_bonus
+
+    def _get_threat_level(self, game):
+        """
+        Returns (left_in_doorway, left_approaching, right_in_doorway, right_approaching).
+
+        in_doorway: animatronic is at the door right now.
+        approaching: animatronic is in the hallway corner and one move from the doorway.
+        """
+        left_doorway = game.is_animatronic_in_doorway('left')
+        right_doorway = game.is_animatronic_in_doorway('right')
+
+        left_approaching = (
+            game.bonnie.current_position == '2B' and game.bonnie.sub_position == -1
+        )
+        right_approaching = (
+            game.chica.current_position == '4B' and game.chica.sub_position == -1
+        )
+
+        return left_doorway, left_approaching, right_doorway, right_approaching
+
+    def _door_and_light_state_from_obs(self, obs):
+        """Extract door/light booleans from the flat observation."""
+        return {
+            'left_door': obs[15] > 0.5,
+            'right_door': obs[16] > 0.5,
+            'left_light': obs[17] > 0.5,
+            'right_light': obs[18] > 0.5,
+        }
 
     def step(self, action):
-        obs, _, terminated, truncated, info = self.env.step(action)
-
-        reward = 0.0
         game = self.env.unwrapped.game
+        pre_left_doorway, pre_left_approaching, pre_right_doorway, pre_right_approaching = (
+            self._get_threat_level(game)
+        )
+
+        obs, _, terminated, truncated, info = self.env.step(action)
+        game = self.env.unwrapped.game
+        reward = 0.0
 
         if terminated:
             if info.get('game_over_reason') == 'SURVIVED':
                 reward = self.win_bonus
             else:
                 reward = self.death_penalty
-        else:
-            reward += self.survival_bonus
-            reward -= self.power_penalty_scale * info.get('power_usage', 1)
+            return obs, reward, terminated, truncated, info
 
-            left_threat = obs[73] > 0.5
-            right_threat = obs[74] > 0.5
-            left_door = obs[15] > 0.5
-            right_door = obs[16] > 0.5
+        reward += self.survival_bonus
+        reward -= self.power_penalty_scale * info.get('power_usage', 1)
 
-            if left_threat and left_door:
-                reward += self.defensive_bonus
-            if right_threat and right_door:
-                reward += self.defensive_bonus
-            if not left_threat and left_door:
-                reward -= self.waste_penalty
-            if not right_threat and right_door:
-                reward -= self.waste_penalty
+        post_left_doorway, post_left_approaching, post_right_doorway, post_right_approaching = (
+            self._get_threat_level(game)
+        )
+        state = self._door_and_light_state_from_obs(obs)
+        left_door = state['left_door']
+        right_door = state['right_door']
+        left_light = state['left_light']
+        right_light = state['right_light']
+
+        # Include pre-step threat state so last-moment correct reactions still
+        # receive credit even when the animatronic moves away during the step.
+        left_doorway = pre_left_doorway or post_left_doorway
+        right_doorway = pre_right_doorway or post_right_doorway
+        left_approaching = pre_left_approaching or post_left_approaching
+        right_approaching = pre_right_approaching or post_right_approaching
+
+        # Reward light usage more strongly for an actual doorway threat than for
+        # a hallway-corner approach.
+        if left_light and left_doorway:
+            reward += self.light_bonus
+        elif left_light and left_approaching:
+            reward += self.light_bonus * 0.5
+
+        if right_light and right_doorway:
+            reward += self.light_bonus
+        elif right_light and right_approaching:
+            reward += self.light_bonus * 0.5
+
+        if left_doorway and left_door:
+            reward += self.defensive_bonus
+        if right_doorway and right_door:
+            reward += self.defensive_bonus
+
+        if left_approaching and left_door:
+            reward += self.approaching_bonus
+        if right_approaching and right_door:
+            reward += self.approaching_bonus
+
+        # Penalize failing to close only when the threat was already present
+        # before the action, so we do not punish the agent for threats that
+        # appeared at the end of the step with no chance to react.
+        if pre_left_doorway and not left_door:
+            reward -= self.open_door_penalty
+        if pre_right_doorway and not right_door:
+            reward -= self.open_door_penalty
+        if pre_left_approaching and not left_door:
+            reward -= self.open_door_penalty * 0.5
+        if pre_right_approaching and not right_door:
+            reward -= self.open_door_penalty * 0.5
+
+        if not left_doorway and not left_approaching and left_door:
+            reward -= self.waste_penalty
+        if not right_doorway and not right_approaching and right_door:
+            reward -= self.waste_penalty
 
         return obs, reward, terminated, truncated, info
 
@@ -95,7 +174,7 @@ class FnafTimePenalty(gym.Wrapper):
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
-        time_progress = obs[0]  # normalized time
+        time_progress = obs[0]
         reward -= self.scale * time_progress
         return obs, reward, terminated, truncated, info
 
@@ -125,12 +204,10 @@ class FnafActionMask(gym.Wrapper):
         power_out = obs[19] > 0.5
 
         if power_out:
-            # Only NOOP is valid during power outage
             mask[:] = False
             mask[0] = True
             return mask
 
-        # Camera switching only valid when cameras are on
         if not cameras_on:
             mask[6:17] = False
 

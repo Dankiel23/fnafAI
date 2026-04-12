@@ -23,6 +23,8 @@ from stable_baselines3.common.monitor import Monitor
 # Register the environment
 import fnaf_gymnasium
 from fnaf_gymnasium.callbacks import FnafMetricsCallback
+from fnaf_gymnasium.wrappers import FnafRewardShaping
+from fnaf_gymnasium.networks import get_policy_kwargs
 
 
 ALGORITHMS = {
@@ -32,7 +34,8 @@ ALGORITHMS = {
 }
 
 
-def make_env(night: int, full_obs: bool = True, step_duration: float = 1.0):
+def make_env(night: int, full_obs: bool = True, step_duration: float = 1.0,
+             reward_shaping: dict = None):
     """Create a FNAF environment factory."""
     def _init():
         env = gym.make(
@@ -41,6 +44,8 @@ def make_env(night: int, full_obs: bool = True, step_duration: float = 1.0):
             step_duration=step_duration,
             full_observability=full_obs,
         )
+        if reward_shaping:
+            env = FnafRewardShaping(env, **reward_shaping)
         return env
     return _init
 
@@ -50,14 +55,26 @@ def train(args):
     log_dir = os.path.join(args.log_dir, f"night{args.night}_{args.algo}")
     os.makedirs(log_dir, exist_ok=True)
 
+    reward_shaping = None
+    if args.reward_shaping:
+        reward_shaping = {
+            'defensive_bonus': args.defensive_bonus,
+            'approaching_bonus': args.approaching_bonus,
+            'power_penalty_scale': args.power_penalty_scale,
+            'waste_penalty': args.waste_penalty,
+            'open_door_penalty': args.open_door_penalty,
+            'light_bonus': args.light_bonus,
+        }
+
     print(f"Training {args.algo.upper()} on Night {args.night}")
     print(f"  Parallel envs: {args.n_envs}")
     print(f"  Total timesteps: {args.total_timesteps}")
     print(f"  Full observability: {args.full_obs}")
+    print(f"  Reward shaping: {args.reward_shaping}")
     print(f"  Logging to: {log_dir}")
 
     # Create vectorized environments for parallel training
-    env_fns = [make_env(args.night, args.full_obs, args.step_duration) for _ in range(args.n_envs)]
+    env_fns = [make_env(args.night, args.full_obs, args.step_duration, reward_shaping) for _ in range(args.n_envs)]
 
     if args.n_envs > 1:
         train_env = SubprocVecEnv(env_fns)
@@ -89,25 +106,28 @@ def train(args):
     # Create model
     AlgoClass = ALGORITHMS[args.algo]
 
+    policy_kwargs = get_policy_kwargs(args.network) if args.network != 'mlp' else {}
+
     model_kwargs = {
         'policy': 'MlpPolicy',
         'env': train_env,
         'verbose': 1,
         'tensorboard_log': os.path.join(log_dir, 'tensorboard'),
         'seed': args.seed,
+        'policy_kwargs': policy_kwargs,
     }
 
     # Algorithm-specific hyperparameters
     if args.algo == 'ppo':
         model_kwargs.update({
             'learning_rate': args.lr,
-            'n_steps': 2048,
-            'batch_size': 64,
-            'n_epochs': 10,
+            'n_steps': args.n_steps,
+            'batch_size': args.batch_size,
+            'n_epochs': args.n_epochs,
             'gamma': 0.99,
             'gae_lambda': 0.95,
             'clip_range': 0.2,
-            'ent_coef': 0.01,  # Encourage exploration
+            'ent_coef': args.ent_coef,
         })
     elif args.algo == 'dqn':
         model_kwargs.update({
@@ -131,7 +151,7 @@ def train(args):
         print(f"Loading model from {args.load_model}")
         model = AlgoClass.load(args.load_model, env=train_env, **{
             k: v for k, v in model_kwargs.items()
-            if k not in ('policy', 'env')
+            if k not in ('policy', 'env', 'policy_kwargs')
         })
     else:
         model = AlgoClass(**model_kwargs)
@@ -246,6 +266,31 @@ def main():
     train_parser.add_argument('--log-dir', type=str, default='./training_logs')
     train_parser.add_argument('--load-model', type=str, default=None,
                               help='Path to existing model to continue training from')
+    train_parser.add_argument('--n-steps', type=int, default=2048,
+                              help='PPO steps per update (higher = more stable, slower)')
+    train_parser.add_argument('--batch-size', type=int, default=64,
+                              help='PPO minibatch size')
+    train_parser.add_argument('--n-epochs', type=int, default=10,
+                              help='PPO gradient epochs per update')
+    train_parser.add_argument('--ent-coef', type=float, default=0.01,
+                              help='Entropy coefficient (higher = more exploration)')
+    train_parser.add_argument('--network', type=str, default='mlp',
+                              choices=['mlp', 'default', 'small', 'large', 'custom'],
+                              help='Network architecture (custom uses FnafFeatureExtractor)')
+    train_parser.add_argument('--reward-shaping', action='store_true', default=False,
+                              help='Enable reward shaping wrapper')
+    train_parser.add_argument('--defensive-bonus', type=float, default=0.05,
+                              help='Reward for closing door against threat in doorway')
+    train_parser.add_argument('--approaching-bonus', type=float, default=0.01,
+                              help='Reward for closing door against threat in hallway')
+    train_parser.add_argument('--power-penalty-scale', type=float, default=0.01,
+                              help='Penalty scale for power usage')
+    train_parser.add_argument('--waste-penalty', type=float, default=0.02,
+                              help='Penalty for closing doors with no nearby threat')
+    train_parser.add_argument('--open-door-penalty', type=float, default=0.05,
+                              help='Penalty for leaving door open while threat is present')
+    train_parser.add_argument('--light-bonus', type=float, default=0.03,
+                              help='Reward for using lights to confirm a doorway threat')
 
     # Curriculum subcommand
     curriculum_parser = subparsers.add_parser('curriculum', help='Curriculum learning')
