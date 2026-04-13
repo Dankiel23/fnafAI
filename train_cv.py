@@ -22,6 +22,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback,
 
 import fnaf_gymnasium
 from fnaf_gymnasium.callbacks import FnafMetricsCallback
+from fnaf_gymnasium.networks import get_policy_kwargs
 from fnaf_gymnasium.wrappers import FnafCVRewardShaping
 
 
@@ -104,6 +105,7 @@ def train_cv(args):
                 model = PPO.load(args.load_model, env=train_env)
                 apply_resume_overrides(model, args)
             else:
+                policy_kwargs = get_policy_kwargs(args.arch)
                 model = PPO(
                     'MlpPolicy',
                     train_env,
@@ -115,7 +117,7 @@ def train_cv(args):
                     gae_lambda=0.95,
                     clip_range=0.2,
                     ent_coef=args.ent_coef,
-                    policy_kwargs=dict(net_arch=dict(pi=[256, 256, 128], vf=[256, 256, 128])),
+                    policy_kwargs=policy_kwargs,
                     tensorboard_log=os.path.join(log_dir, 'tensorboard'),
                     verbose=1,
                 )
@@ -207,6 +209,9 @@ def main():
                         help='Penalty for selecting a camera while the monitor is down')
     parser.add_argument('--redundant-camera-penalty', type=float, default=0.005,
                         help='Penalty for re-selecting the camera already being viewed')
+    parser.add_argument('--arch', type=str, default='cv',
+                        choices=['default', 'small', 'large', 'custom', 'cv'],
+                        help='Network architecture (cv = FnafCVFeatureExtractor, recommended)')
     parser.add_argument('--log-dir', type=str, default='./training_logs/cv')
     args = parser.parse_args()
     train_cv(args)

@@ -182,13 +182,22 @@ class FnafCVReadyEnv(gym.Env):
             night = options['night']
 
         self.game = FNAFGame(night=night)
+        g = self.game
 
-        # Reset memory
-        for name in ['Freddy', 'Bonnie', 'Chica', 'Foxy']:
-            self._last_known_positions[name] = None
-            self._last_seen_time[name] = -MEMORY_DECAY_MAX
+        # Bootstrap memory with known starting positions.
+        # FNAF always starts animatronics at fixed locations (Freddy/Bonnie/Chica at 1A,
+        # Foxy at 1C), so the agent "knows" these the same way a player glancing at
+        # the cameras on night-start would. Without this, memory is blank, every door
+        # close triggers a waste_penalty, and the agent learns to never close doors
+        # before it can even attempt to learn camera management.
+        for name, anim in [
+            ('Freddy', g.freddy), ('Bonnie', g.bonnie),
+            ('Chica', g.chica), ('Foxy', g.foxy),
+        ]:
+            self._last_known_positions[name] = anim.current_position
+            self._last_seen_time[name] = 0.0  # fresh at game start
 
-        self._last_known_foxy_sub = 0
+        self._last_known_foxy_sub = max(0, g.foxy.sub_position)
         self._cameras_off_duration = 0.0
         self._left_door_open_duration = 0.0
         self._right_door_open_duration = 0.0
