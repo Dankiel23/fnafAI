@@ -8,6 +8,7 @@ import fnaf_gymnasium
 from fnaf_gymnasium.envs.fnaf_env import FnafEnv
 from fnaf_gymnasium.wrappers import (
     FnafRewardShaping,
+    FnafCVRewardShaping,
     FnafSparseReward,
     FnafTimePenalty,
     FnafActionMask,
@@ -163,4 +164,139 @@ class TestFnafRewardShaping:
         assert not terminated
         assert reward <= -1.0
         assert env.unwrapped.game.chica.current_position == 'office'
+        env.close()
+
+
+class TestFnafCVRewardShaping:
+
+    def test_invalid_camera_switch_is_penalized_when_monitor_down(self):
+        env = FnafCVRewardShaping(
+            gym.make('FnafCVReady-v0', night=1),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            defensive_bonus=0.0,
+            approaching_bonus=0.0,
+            waste_penalty=0.0,
+            open_door_penalty=0.0,
+            light_bonus=0.0,
+            info_gain_bonus=0.0,
+            invalid_camera_penalty=1.0,
+            redundant_camera_penalty=0.0,
+        )
+        env.reset()
+
+        _, reward, terminated, _, _ = env.step(6)  # Select camera while monitor is down
+
+        assert not terminated
+        assert reward <= -1.0
+        env.close()
+
+    def test_new_cv_sighting_is_rewarded(self):
+        env = FnafCVRewardShaping(
+            gym.make('FnafCVReady-v0', night=1),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            defensive_bonus=0.0,
+            approaching_bonus=0.0,
+            waste_penalty=0.0,
+            open_door_penalty=0.0,
+            light_bonus=0.0,
+            info_gain_bonus=1.0,
+            invalid_camera_penalty=0.0,
+            redundant_camera_penalty=0.0,
+        )
+        env.reset()
+        env.unwrapped.game.player.cameras_on = True
+        env.unwrapped.game.player.current_camera = '1A'
+
+        _, reward, terminated, _, _ = env.step(0)
+
+        assert not terminated
+        assert reward >= 3.0
+        env.close()
+
+    def test_repeated_fresh_sighting_is_not_rewarded(self):
+        env = FnafCVRewardShaping(
+            gym.make('FnafCVReady-v0', night=1),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            defensive_bonus=0.0,
+            approaching_bonus=0.0,
+            waste_penalty=0.0,
+            open_door_penalty=0.0,
+            light_bonus=0.0,
+            info_gain_bonus=1.0,
+            info_refresh_threshold=5.0,
+            invalid_camera_penalty=0.0,
+            redundant_camera_penalty=0.0,
+        )
+        env.reset()
+        env.unwrapped.game.player.cameras_on = True
+        env.unwrapped.game.player.current_camera = '1A'
+        env.unwrapped._update_memory()
+
+        _, reward, terminated, _, _ = env.step(0)
+
+        assert not terminated
+        assert reward == 0.0
+        env.close()
+
+    def test_stale_left_light_check_is_rewarded_once(self):
+        env = FnafCVRewardShaping(
+            gym.make('FnafCVReady-v0', night=1),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            defensive_bonus=0.0,
+            approaching_bonus=0.0,
+            waste_penalty=0.0,
+            open_door_penalty=0.0,
+            light_bonus=0.0,
+            info_gain_bonus=0.0,
+            stale_light_bonus=1.0,
+            stale_light_threshold=0.0,
+            light_scout_cooldown=5.0,
+            invalid_camera_penalty=0.0,
+            redundant_camera_penalty=0.0,
+        )
+        env.reset()
+
+        _, reward1, terminated1, _, _ = env.step(4)  # Toggle left light on
+        _, _, _, _, _ = env.step(4)  # Toggle left light off
+        _, reward2, terminated2, _, _ = env.step(4)  # Toggle left light on again immediately
+
+        assert not terminated1
+        assert not terminated2
+        assert reward1 >= 1.0
+        assert reward2 == 0.0
+        env.close()
+
+    def test_right_doorway_close_is_rewarded_even_if_threat_moves_away(self):
+        env = FnafCVRewardShaping(
+            gym.make('FnafCVReady-v0', night=2),
+            survival_bonus=0.0,
+            power_penalty_scale=0.0,
+            waste_penalty=0.0,
+            defensive_bonus=1.0,
+            approaching_bonus=0.0,
+            open_door_penalty=0.0,
+            light_bonus=0.0,
+            info_gain_bonus=0.0,
+            invalid_camera_penalty=0.0,
+            redundant_camera_penalty=0.0,
+        )
+        env.reset()
+        env.unwrapped.game.chica.current_ai_level = 20
+        env.unwrapped.game.chica.current_position = '4B'
+        env.unwrapped.game.chica.sub_position = 1
+        env.unwrapped.game.chica.time_since_last_check = (
+            env.unwrapped.game.chica.movement_opportunity_interval
+        )
+        env.unwrapped.game.player.right_door_closed = False
+
+        _, reward, terminated, _, _ = env.step(3)  # Toggle right door
+
+        assert not terminated
+        assert reward >= 1.0
+        assert env.unwrapped.game.player.right_door_closed is True
+        assert env.unwrapped.game.chica.current_position == '1B'
         env.close()

@@ -3,6 +3,7 @@
 from gymnasium.envs.registration import register
 from .wrappers import (
     FnafRewardShaping,
+    FnafCVRewardShaping,
     FnafSparseReward,
     FnafTimePenalty,
     FnafActionMask,
@@ -40,6 +41,7 @@ register(
 
 __all__ = [
     'FnafRewardShaping',
+    'FnafCVRewardShaping',
     'FnafSparseReward',
     'FnafTimePenalty',
     'FnafActionMask',

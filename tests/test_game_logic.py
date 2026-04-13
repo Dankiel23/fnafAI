@@ -133,12 +133,18 @@ class TestPlayerActions:
 
     def test_switch_camera(self):
         game = FNAFGame(night=1)
+        game.toggle_cameras()
         game.switch_camera('4B')
         assert game.player.current_camera == '4B'
 
     def test_invalid_camera_ignored(self):
         game = FNAFGame(night=1)
         game.switch_camera('invalid')
+        assert game.player.current_camera == '1A'
+
+    def test_switch_camera_ignored_when_cameras_off(self):
+        game = FNAFGame(night=1)
+        game.switch_camera('4B')
         assert game.player.current_camera == '1A'
 
     def test_toggle_doors(self):

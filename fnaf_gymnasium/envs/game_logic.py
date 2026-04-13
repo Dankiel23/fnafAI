@@ -642,7 +642,8 @@ class FNAFGame:
 
     def switch_camera(self, camera: str):
         """Switch to a specific camera."""
-        if camera not in CAMERAS or self.power_out or self.game_over:
+        if (camera not in CAMERAS or self.power_out or self.game_over
+                or not self.player.cameras_on):
             return
         self.player.current_camera = camera
         self.player.cameras_looked_at += 1

@@ -106,6 +106,7 @@ class TestEnvActions:
     def test_switch_camera(self):
         env = FnafEnv(night=1)
         env.reset()
+        obs, _, _, _, _ = env.step(1)  # Toggle cameras ON
         obs, _, _, _, _ = env.step(6 + 7)  # Switch to camera index 7 = '4B'
         # Camera one-hot at index 4+7=11 should be 1
         assert obs[4 + 7] == 1.0
